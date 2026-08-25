@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Prospection Habitat V4</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#17202a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.app{max-width:1000px;margin:auto;padding:12px}
+header{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px}
+h1{margin:0;font-size:23px}p{margin:3px 0;color:#66717d;font-size:13px}
+button{font:inherit;border:0;border-radius:11px;padding:11px 13px;font-weight:700}
+.primary{background:#1769e0;color:white}.secondary{background:white;border:1px solid #d7dde4}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:9px}
+.stat{background:white;border:1px solid #e1e5ea;border-radius:13px;padding:9px}.stat b{display:block;font-size:20px}.stat span{font-size:11px;color:#697582}
+.mapwrap{position:relative}#map{height:58vh;min-height:390px;max-height:650px;border-radius:17px;overflow:hidden;border:1px solid #ccd3da}
+.locate{position:absolute;z-index:500;right:12px;top:12px;background:white;box-shadow:0 2px 8px #0003}
+.panel{background:white;border:1px solid #e1e5ea;border-radius:15px;padding:13px;margin-top:10px}
+.panel h2{font-size:17px;margin:0 0 10px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.choice{background:#f7f8fa;border:1px solid #d5dbe2;min-height:48px}
+.choice.selected{background:#1769e0;color:#fff;border-color:#1769e0}
+.status{color:#fff}.green{background:#20a84a}.orange{background:#f39a18}.red{background:#e43b3b}.black{background:#222}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.hidden{display:none}
+.list{display:grid;gap:7px}.item{display:flex;justify-content:space-between;gap:8px;align-items:center;border:1px solid #e1e5ea;border-radius:11px;padding:9px}
+.item small{display:block;color:#6d7782;margin-top:2px}.hint{font-size:12px;color:#64707d;margin:8px 2px}
+@media(max-width:600px){header{align-items:flex-start;flex-direction:column}.stats{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr 1fr}#map{height:54vh;min-height:360px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div><h1>Prospection Habitat</h1><p>V4 · touche directement une maison sur la carte satellite</p></div>
+  <button class="primary" id="locate">📍 Ma position</button>
+</header>
+
+<section class="stats">
+<div class="stat"><b id="total">0</b><span>Maisons</span></div>
+<div class="stat"><b id="sales">0</b><span>🟢 Vente</span></div>
+<div class="stat"><b id="review">0</b><span>🟠 À revoir</span></div>
+<div class="stat"><b id="no">0</b><span>🔴 Pas intéressé</span></div>
+</section>
+
+<div id="map"></div>
+<div class="hint">👉 Appuie sur l'emplacement d'une maison sur la carte pour ouvrir sa fiche. Tu peux ensuite choisir les travaux et le résultat.</div>
+
+<section class="panel hidden" id="panel">
+<h2 id="panelTitle">🏠 Maison</h2>
+<div class="grid">
+<button class="choice" data-work="Toiture">🏠 Toiture</button>
+<button class="choice" data-work="Façade">🧱 Façade</button>
+<button class="choice" data-work="Isolation">🌡️ Isolation</button>
+<button class="choice" data-work="VMC">💨 VMC</button>
+<button class="choice" data-work="Traitement du bois">🪵 Traitement bois</button>
+<button class="choice" data-work="Hydrofuge toiture">💧 Hydrofuge toiture</button>
+</div>
+<h2 style="margin-top:14px">Résultat</h2>
+<div class="grid">
+<button class="choice status green" data-status="Vente">🟢 Vente</button>
+<button class="choice status orange" data-status="À revoir">🟠 À revoir</button>
+<button class="choice status red" data-status="Pas intéressé">🔴 Pas intéressé</button>
+<button class="choice status black" data-status="Absent">⚫ Absent</button>
+</div>
+<div class="actions">
+<button class="primary" id="save">✅ Enregistrer</button>
+<button class="secondary" id="cancel">Annuler</button>
+<button class="secondary" id="delete">Supprimer</button>
+</div>
+</section>
+
+<section class="panel">
+<h2>Maisons enregistrées</h2>
+<div id="list" class="list"><small>Aucune maison enregistrée.</small></div>
+</section>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const KEY="prospection-habitat-v4";
+let data=JSON.parse(localStorage.getItem(KEY)||"[]");
+let editing=-1, selectedLat=null, selectedLng=null, works=[], status="";
+const $=id=>document.getElementById(id);
+
+const map=L.map("map").setView([46.58,0.34],15);
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{
+ maxZoom:19,attribution:"Imagery © Esri"
+}).addTo(map);
+
+function color(s){return {green:"#20a84a",orange:"#f39a18",red:"#e43b3b",black:"#222"}[s]||"#1769e0"}
+function label(s){return {green:"Vente",orange:"À revoir",red:"Pas intéressé",black:"Absent"}[s]||""}
+function icon(s){return L.divIcon({className:"",html:`<div style="width:27px;height:27px;border-radius:50%;background:${color(s)};border:3px solid white;box-shadow:0 2px 7px #0008"></div>`,iconSize:[27,27],iconAnchor:[13,13]})}
+
+function openHouse(lat,lng,index=-1){
+ editing=index;
+ selectedLat=lat; selectedLng=lng;
+ if(index>=0){
+   const x=data[index]; works=[...(x.works||[])]; status=x.status||"";
+   $("panelTitle").textContent="🏠 Maison enregistrée";
+ }else{
+   works=[]; status=""; $("panelTitle").textContent="🏠 Nouvelle maison";
+ }
+ syncChoices();
+ $("panel").classList.remove("hidden");
+ $("panel").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+
+map.on("click",e=>openHouse(e.latlng.lat,e.latlng.lng,-1));
+
+document.querySelectorAll("[data-work]").forEach(b=>b.onclick=()=>{
+ const w=b.dataset.work;
+ works=works.includes(w)?works.filter(x=>x!==w):[...works,w];
+ syncChoices();
+});
+document.querySelectorAll("[data-status]").forEach(b=>b.onclick=()=>{
+ status=b.dataset.status; syncChoices();
+});
+function syncChoices(){
+ document.querySelectorAll("[data-work]").forEach(b=>b.classList.toggle("selected",works.includes(b.dataset.work)));
+ document.querySelectorAll("[data-status]").forEach(b=>b.classList.toggle("selected",b.dataset.status===status));
+}
+
+$("cancel").onclick=()=>{$("panel").classList.add("hidden");editing=-1}
+$("delete").onclick=()=>{
+ if(editing>=0 && confirm("Supprimer cette maison ?")){
+   data.splice(editing,1); save(); $("panel").classList.add("hidden"); editing=-1;
+ }
+};
+$("save").onclick=()=>{
+ if(selectedLat===null)return;
+ const item={lat:selectedLat,lng:selectedLng,works:[...works],status:status||"black"};
+ if(editing>=0)data[editing]=item; else data.push(item);
+ save(); $("panel").classList.add("hidden"); editing=-1;
+};
+
+$("locate").onclick=()=>{
+ if(!navigator.geolocation){alert("Géolocalisation indisponible.");return}
+ navigator.geolocation.getCurrentPosition(p=>{
+   const ll=[p.coords.latitude,p.coords.longitude];
+   map.setView(ll,19);
+ },()=>alert("Autorise la localisation dans Safari pour utiliser Ma position."),{enableHighAccuracy:true,timeout:10000});
+};
+
+function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}
+function render(){
+ map.eachLayer(layer=>{if(layer instanceof L.Marker)map.removeLayer(layer)});
+ data.forEach((x,i)=>{
+   if(!Number.isFinite(x.lat)||!Number.isFinite(x.lng))return;
+   const m=L.marker([x.lat,x.lng],{icon:icon(x.status)}).addTo(map);
+   m.bindPopup(`<b>🏠 Maison</b><br>${label(x.status)}<br>${(x.works||[]).join(" · ")}<br><button onclick="editHouse(${i})">Modifier</button>`);
+ });
+ $("total").textContent=data.length;
+ $("sales").textContent=data.filter(x=>x.status==="green").length;
+ $("review").textContent=data.filter(x=>x.status==="orange").length;
+ $("no").textContent=data.filter(x=>x.status==="red").length;
+ $("list").innerHTML=data.map((x,i)=>`<div class="item"><div><b>🏠 Maison ${i+1}</b><small>${label(x.status)} · ${(x.works||[]).join(" · ")||"Aucun travaux"}</small></div><button class="secondary" onclick="editHouse(${i})">Modifier</button></div>`).join("")||"<small>Aucune maison enregistrée.</small>";
+}
+window.editHouse=i=>openHouse(data[i].lat,data[i].lng,i);
+render();
+</script>
+</body>
+</html>
