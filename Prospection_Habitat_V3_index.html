@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Prospection Habitat V3</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f6f8;color:#17202a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.app{max-width:1000px;margin:auto;padding:12px}header{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px}
+h1{margin:0;font-size:23px}p{margin:3px 0;color:#66717d;font-size:13px}button,input,select,textarea{font:inherit}
+button{border:0;border-radius:11px;padding:10px 13px;font-weight:700}.primary{background:#1769e0;color:white}.secondary{background:white;border:1px solid #d7dde4}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:9px}.stat{background:white;border:1px solid #e1e5ea;border-radius:13px;padding:9px}
+.stat b{display:block;font-size:20px}.stat span{font-size:11px;color:#697582}.mapwrap{position:relative}
+#map{height:58vh;min-height:390px;max-height:650px;border-radius:17px;overflow:hidden;border:1px solid #ccd3da}
+.locate{position:absolute;z-index:500;right:12px;top:12px;background:white;box-shadow:0 2px 8px #0003}
+.legend{background:white;border:1px solid #e1e5ea;border-radius:12px;padding:9px;margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px}.panel{background:white;border:1px solid #e1e5ea;border-radius:15px;padding:13px;margin-top:10px}
+.panel h2{font-size:16px;margin:0 0 9px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.field label{font-size:12px;font-weight:700;color:#586575;display:block;margin-bottom:4px}
+input,select,textarea{width:100%;padding:10px;border:1px solid #d5dbe2;border-radius:10px;background:white}textarea{min-height:75px}.actions{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+.list{display:grid;gap:7px}.item{display:flex;justify-content:space-between;gap:8px;align-items:center;border:1px solid #e1e5ea;border-radius:11px;padding:9px}.item small{display:block;color:#6d7782;margin-top:2px}
+.badge{color:white;padding:5px 7px;border-radius:7px;font-size:10px;font-weight:700}.hidden{display:none}
+.hint{font-size:12px;color:#64707d;margin:8px 2px}.leaflet-popup-content button{padding:7px 9px}
+@media(max-width:600px){header{align-items:flex-start;flex-direction:column}.stats{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}#map{height:54vh;min-height:360px}}
+</style>
+</head>
+<body><div class="app">
+<header><div><h1>Prospection Habitat</h1><p>Rénovation de l'habitat · V3 terrain</p></div><button class="primary" id="new">+ Maison</button></header>
+<section class="stats">
+<div class="stat"><b id="total">0</b><span>Total</span></div><div class="stat"><b id="sales">0</b><span>🟢 Ventes</span></div>
+<div class="stat"><b id="review">0</b><span>🟠 À revoir</span></div><div class="stat"><b id="no">0</b><span>🔴 Pas intéressé</span></div>
+<div class="stat"><b id="absent">0</b><span>⚫ Absents</span></div>
+</section>
+<div class="mapwrap"><div id="map"></div><button class="locate" id="locate">📍 Ma position</button></div>
+<div class="hint">Astuce : zoome sur une rue puis touche l'emplacement d'une maison pour créer sa fiche.</div>
+<div class="legend"><span><i class="dot" style="background:#20a84a"></i>Vente</span><span><i class="dot" style="background:#f39a18"></i>À revoir</span><span><i class="dot" style="background:#e43b3b"></i>Pas intéressé</span><span><i class="dot" style="background:#111"></i>Absent</span></div>
+
+<section class="panel hidden" id="panel"><h2>Fiche maison</h2><form id="form"><div class="grid">
+<div class="field"><label>Adresse</label><input id="address" required placeholder="12 rue des Lilas"></div>
+<div class="field"><label>Statut</label><select id="status"><option value="green">🟢 Vente</option><option value="orange">🟠 À revoir</option><option value="red">🔴 Pas intéressé</option><option value="black">⚫ Absent</option></select></div>
+<div class="field"><label>Nom</label><input id="name" placeholder="Nom / prénom"></div><div class="field"><label>Téléphone</label><input id="phone" inputmode="tel" placeholder="06…"></div>
+<div class="field"><label>Travaux</label><select id="work"><option value="">—</option><option>Toiture</option><option>Façade</option><option>Isolation</option><option>VMC</option><option>Traitement du bois</option><option>Hydrofuge toiture</option><option>Hydrofuge façade</option><option>Plusieurs travaux</option></select></div>
+<div class="field"><label>Prochaine visite</label><input id="next" type="date"></div></div>
+<div class="field" style="margin-top:9px"><label>Notes</label><textarea id="notes" placeholder="Informations utiles…"></textarea></div>
+<div class="actions"><button class="primary">Enregistrer</button><button type="button" class="secondary" id="cancel">Annuler</button><button type="button" class="secondary hidden" id="del">Supprimer</button></div>
+</form></section>
+
+<section class="panel"><h2>Maisons enregistrées</h2><div id="list" class="list"></div></section>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const KEY="prospection-habitat-v3";
+let data=JSON.parse(localStorage.getItem(KEY)||"[]"),editing=-1,markers=[],locationMarker=null;
+const $=id=>document.getElementById(id);
+const map=L.map("map").setView([46.6,1.9],6);
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Imagery © Esri"}).addTo(map);
+function esc(s){return String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function col(s){return {green:"#20a84a",orange:"#f39a18",red:"#e43b3b",black:"#111"}[s]}
+function label(s){return {green:"Vente",orange:"À revoir",red:"Pas intéressé",black:"Absent"}[s]}
+function icon(s){return L.divIcon({className:"",html:'<div style="width:25px;height:25px;border-radius:50%;background:'+col(s)+';border:3px solid white;box-shadow:0 2px 7px #0008"></div>',iconSize:[25,25],iconAnchor:[12,12]})}
+function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}
+function openNew(lat,lng){editing=-1;$("form").reset();$("status").value="black";$("panel").dataset.lat=lat;$("panel").dataset.lng=lng;$("del").classList.add("hidden");$("panel").classList.remove("hidden");$("panel").scrollIntoView({behavior:"smooth"});$("address").focus()}
+function edit(i){editing=i;const x=data[i];$("address").value=x.address||"";$("status").value=x.status;$("name").value=x.name||"";$("phone").value=x.phone||"";$("work").value=x.work||"";$("next").value=x.next||"";$("notes").value=x.notes||"";$("del").classList.remove("hidden");$("panel").classList.remove("hidden");if(x.lat)map.setView([x.lat,x.lng],18);$("panel").scrollIntoView({behavior:"smooth"})}
+window.edit=edit;
+map.on("click",e=>openNew(e.latlng.lat,e.latlng.lng));
+$("new").onclick=()=>openNew(map.getCenter().lat,map.getCenter().lng);
+$("cancel").onclick=()=>$("panel").classList.add("hidden");
+$("del").onclick=()=>{if(editing>=0&&confirm("Supprimer cette maison ?")){data.splice(editing,1);editing=-1;$("panel").classList.add("hidden");save()}};
+$("locate").onclick=()=>{if(!navigator.geolocation){alert("Géolocalisation indisponible.");return}navigator.geolocation.getCurrentPosition(p=>{const ll=[p.coords.latitude,p.coords.longitude];map.setView(ll,19);if(locationMarker)map.removeLayer(locationMarker);locationMarker=L.circleMarker(ll,{radius:9,color:"#1769e0",fillColor:"#1769e0",fillOpacity:.9}).addTo(map).bindPopup("📍 Vous êtes ici").openPopup()},()=>alert("Autorise la localisation dans Safari pour utiliser Ma position."),{enableHighAccuracy:true,timeout:10000})};
+$("form").onsubmit=e=>{e.preventDefault();const x={address:$("address").value.trim(),status:$("status").value,name:$("name").value.trim(),phone:$("phone").value.trim(),work:$("work").value,next:$("next").value,notes:$("notes").value.trim()};if(!x.address)return;if(editing>=0){x.lat=data[editing].lat;x.lng=data[editing].lng;data[editing]=x}else{x.lat=+$("panel").dataset.lat;x.lng=+$("panel").dataset.lng;data.push(x)}$("panel").classList.add("hidden");save()};
+function render(){markers.forEach(m=>map.removeLayer(m));markers=[];data.forEach((x,i)=>{if(!Number.isFinite(x.lat)||!Number.isFinite(x.lng))return;const m=L.marker([x.lat,x.lng],{icon:icon(x.status)}).addTo(map);m.bindPopup("<b>"+esc(x.address)+"</b><br>"+label(x.status)+(x.work?"<br>"+esc(x.work):"")+(x.notes?"<br>"+esc(x.notes):"")+'<br><button onclick="edit('+i+')">Modifier</button>');markers.push(m)});
+$("total").textContent=data.length;$("sales").textContent=data.filter(x=>x.status==="green").length;$("review").textContent=data.filter(x=>x.status==="orange").length;$("no").textContent=data.filter(x=>x.status==="red").length;$("absent").textContent=data.filter(x=>x.status==="black").length;
+$("list").innerHTML=data.slice().reverse().map((x,r)=>{const i=data.length-1-r;return '<div class="item"><div><b>'+esc(x.address)+'</b><small>'+esc(x.name||"")+(x.work?" · "+esc(x.work):"")+'</small></div><div><span class="badge" style="background:'+col(x.status)+'">'+label(x.status)+'</span> <button class="secondary" onclick="edit('+i+')">Modifier</button></div></div>'}).join("")||"<small>Aucune maison. Appuie sur la carte pour commencer.</small>"}
+render();
+</script></body></html>
